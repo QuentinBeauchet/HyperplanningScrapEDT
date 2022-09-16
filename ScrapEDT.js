@@ -75,7 +75,7 @@ function getCoursesWeek(header) {
     courses.push({
       time,
       subject: contents.shift(),
-      description: contents.join(" - "),
+      description: contents.join("\r\n - "),
       location: "",
     });
   }
