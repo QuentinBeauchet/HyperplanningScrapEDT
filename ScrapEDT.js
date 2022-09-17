@@ -7,8 +7,16 @@ const COURSE_CONTENT = "contenu";
 const COURSE_CONTENT_PREFIX = "Accéder à l'emploi du temps de ";
 const DISABLED_WEEK_CLASS = "Calendrier_JourInactif";
 const START_YEAR = 2022;
+const LEFT_ZOOM_DIFF = 7;
+const GMT_OFFSET = 2;
 
+/**
+ * Generate the .ics calendar and return it's string.
+ * @param {String} name The name of the student.
+ * @returns The .ics calendar as string.
+ */
 async function getEDT(name) {
+  document.body.style.zoom = "25%";
   let input = document.getElementById(INPUT_ID);
   input.value = name;
   input.dispatchEvent(new Event("keypress", { which: 13 }));
@@ -23,6 +31,10 @@ async function getEDT(name) {
   );
 }
 
+/**
+ * Get the courses for each week of the year.
+ * @returns all the courses of the year.
+ */
 async function getWeeks() {
   let courses = [];
   let notThisWeek = false;
@@ -40,11 +52,15 @@ async function getWeeks() {
   }
   return courses;
 }
-
+/**
+ * Return the courses displayed for this week.
+ * @param {HTMLElement} header
+ * @returns the courses displayed for this week.
+ */
 function getCoursesWeek(header) {
   let days = {};
   for (let day of header.childNodes) {
-    days[day.getBoundingClientRect().left + 1] = day.firstChild.innerHTML
+    days[day.getBoundingClientRect().left + LEFT_ZOOM_DIFF] = day.firstChild.innerHTML
       .replace("février", "feb")
       .replace("avril", "apr")
       .replace("mai", "may")
@@ -75,13 +91,18 @@ function getCoursesWeek(header) {
     courses.push({
       time,
       subject: contents.shift(),
-      description: contents.join("\r\n - "),
+      description: contents.join(" - "),
       location: "",
     });
   }
   return courses;
 }
 
+/**
+ * Wait for the HTML Element with this ID to be visible in the DOM.
+ * @param {String} id
+ * @returns The HTML element
+ */
 function waitID(id) {
   return new Promise((resolve) => {
     let waiting = setInterval(() => {
@@ -94,11 +115,17 @@ function waitID(id) {
   });
 }
 
+/**
+ * Generate the .ics calendar.
+ * In the map the +10 is because Google calendar ignore events with an uid < 10.
+ * @param {Array[Object]} events
+ * @returns
+ */
 function createCalendar(events) {
   let calendar = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Google Inc//Google Calendar 70.9054//EN
-${events.map((event, i) => createEvent(event, i)).join("")}END:VCALENDAR
+${events.map((event, i) => createEvent(event, i + 100)).join("")}END:VCALENDAR
 `;
 
   let blob = new Blob([calendar], {
@@ -113,6 +140,12 @@ ${events.map((event, i) => createEvent(event, i)).join("")}END:VCALENDAR
   return calendar;
 }
 
+/**
+ * Generate an .ics event.
+ * @param {Object} args The informations of the course
+ * @param {int} uid
+ * @returns The VEVENT String to add to the VCALENDAR
+ */
 function createEvent({ time, subject, description, location }, uid) {
   return `BEGIN:VEVENT
 DTSTART:${getTime(new Date(time.from))}
@@ -125,23 +158,49 @@ SEQUENCE:0
 STATUS:CONFIRMED
 SUMMARY:${subject}
 LOCATION:${location}
-DESCRIPTION:${description}
+${foldLine(`DESCRIPTION:${description}`)}
 TRANSP:OPAQUE
 END:VEVENT
 `;
 }
 
+/**
+ * Get the correct date format for an .ics file.
+ * @param {Date} date
+ * @returns String like 20220324T083000Z for 03/24/2022 08:30:00
+ */
 function getTime(date) {
-  var month = (date.getMonth() + 1).toString().padStart(2, "0");
-  var year = date.getMonth() > 6 ? START_YEAR : START_YEAR + 1;
-  var day = date.getDate().toString().padStart(2, "0");
-  var hours = date.getHours().toString().padStart(2, "0");
-  var minutes = date.getMinutes().toString().padStart(2, "0");
+  let realDate = new Date(date.setHours(date.getHours() - GMT_OFFSET));
+  var month = (realDate.getMonth() + 1).toString().padStart(2, "0");
+  var year = realDate.getMonth() > 6 ? START_YEAR : START_YEAR + 1;
+  var day = realDate.getDate().toString().padStart(2, "0");
+  var hours = realDate.getHours().toString().padStart(2, "0");
+  var minutes = realDate.getMinutes().toString().padStart(2, "0");
+
   return `${year}${month}${day}T${hours}${minutes}00Z`;
 }
 
+/**
+ * Sleep for the duration in ms.
+ * @param {int} ms
+ */
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(() => resolve(), ms));
+}
+
+/**
+ * To avoid the 75 word per line limit
+ * @param {String} line
+ * @returns The line split by CLRF endings
+ */
+function foldLine(line) {
+  const parts = [];
+  while (line.length > 60) {
+    parts.push(line.slice(0, 60));
+    line = line.slice(60);
+  }
+  parts.push(line);
+  return parts.join("\r\n\t");
 }
 
 (async () => console.log(await getEDT("beauchet")))();
