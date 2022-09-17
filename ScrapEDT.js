@@ -6,9 +6,12 @@ const COURSE_CLASS = "cours-simple";
 const COURSE_CONTENT = "contenu";
 const COURSE_CONTENT_PREFIX = "Accéder à l'emploi du temps de ";
 const DISABLED_WEEK_CLASS = "Calendrier_JourInactif";
+const LEFT_ZOOM_OFFSET = 7;
+
 const START_YEAR = 2022;
-const LEFT_ZOOM_DIFF = 7;
 const GMT_OFFSET = 2;
+const WINTER_DATE = new Date("30 oct 2022").getTime();
+const SUMMER_DATE = new Date("26 mar 2023").getTime();
 
 /**
  * Generate the .ics calendar and return it's string.
@@ -48,7 +51,7 @@ async function getWeeks() {
     let el = await waitID(DAYS_HEADER_ID);
     if (notThisWeek) courses.push(...getCoursesWeek(el));
     notThisWeek = true;
-    await sleep(50);
+    await sleep(300);
   }
   return courses;
 }
@@ -60,7 +63,7 @@ async function getWeeks() {
 function getCoursesWeek(header) {
   let days = {};
   for (let day of header.childNodes) {
-    days[day.getBoundingClientRect().left + LEFT_ZOOM_DIFF] = day.firstChild.innerHTML
+    days[day.getBoundingClientRect().left + LEFT_ZOOM_OFFSET] = day.firstChild.innerHTML
       .replace("février", "feb")
       .replace("avril", "apr")
       .replace("mai", "may")
@@ -170,12 +173,17 @@ END:VEVENT
  * @returns String like 20220324T083000Z for 03/24/2022 08:30:00
  */
 function getTime(date) {
-  let realDate = new Date(date.setHours(date.getHours() - GMT_OFFSET));
-  var month = (realDate.getMonth() + 1).toString().padStart(2, "0");
-  var year = realDate.getMonth() > 6 ? START_YEAR : START_YEAR + 1;
-  var day = realDate.getDate().toString().padStart(2, "0");
-  var hours = realDate.getHours().toString().padStart(2, "0");
-  var minutes = realDate.getMinutes().toString().padStart(2, "0");
+  const year = date.getMonth() > 6 ? START_YEAR : START_YEAR + 1;
+  date.setFullYear(year);
+
+  let time = date.getTime() - GMT_OFFSET * 3_600_000;
+  let daylightSavingOffset = time > WINTER_DATE && time < SUMMER_DATE ? 3_600_000 : 0;
+  let realDate = new Date(time + daylightSavingOffset);
+
+  const month = (realDate.getMonth() + 1).toString().padStart(2, "0");
+  const day = realDate.getDate().toString().padStart(2, "0");
+  const hours = realDate.getHours().toString().padStart(2, "0");
+  const minutes = realDate.getMinutes().toString().padStart(2, "0");
 
   return `${year}${month}${day}T${hours}${minutes}00Z`;
 }
